@@ -51,18 +51,26 @@ USAGE
 slide_index [flags] <pptx file> [<pptx file> ...]
 
  Flags:
+ 
   -d            : Disable the "auto-keyword" mode. By default, all-lowercase words are understood as keywords
                   and displayed differently in an RTF index.
+                  
   -I <filename> : Read words to index from <filename>.
                   Each line can contain several variants of the same word, separated by a character that
                   defaults to a semi-colon. The first entry on the line is the one that appears in the index.
+                  
   -k <char>     : Prefix for keywords (displayed differently in an RTF index); must be a single character.
+  
   -p <num>      : By default the slide number appear in the index. If handouts contain multiple slides per page,
                   the -p flag followed by the number of slides per page will list the page number in the index.
+                  
   -r            : Generate an RTF (Rich-Text-Format) index instead of a plain-text one.
+  
   -s <char>     : Change the separator from ';' to <char>
+  
   -S <filename> : Read words that are NOT to index (stop words) from <filename>. There must be only one word per
                   line and no stemming is performed (all variants must be explicitly listed in the file)
+                  
   -t            : Exclusively index from tags in slide notes.
 
 EXAMPLES
