@@ -1,7 +1,7 @@
 # slide_index
 A utility for generating an index for Powerpoint slides
 
-IMPORTANT: This utilitity requires miniz (https://code.google.com/archive/p/miniz/) as well as SQLite (which is usually installed on any Mac/Linux machine).
+IMPORTANT: This utilitity requires miniz (https://code.google.com/archive/p/miniz/) as well as SQLite (which is usually installed on any Mac/Linux machine). As my code requires miniz.h and as the header file is in fact included into miniz.c, I have extracted it and added to this repository.
 
 I've written this utility for the benefit of my students while teaching at Kansas State University - Course notes for my classes consist of 4-slide per page handouts of the slides used during lectures. Slides for handouts are modified to make animations legible in a PDF file, and contain added annotations, as I avoid having too much text (other than programs, as I teach CS) on the slides I present, and as I want to make sure that my students have all the important information; I don't doubt their note-taking abilities, but I prefer them to listen and watch rather than try to take everything I say in notes. As I average one slide per minute, that's a lot of slides at the end of the term and remembering during which lecture this important topic was discussed may be challenging when reviewing before exams.
 The idea of this tool is to have something far superior to full-text search.
