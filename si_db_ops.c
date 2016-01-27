@@ -126,14 +126,14 @@ extern void setup_sqlite() {
          || (sqlite3_prepare(G_db,
                           "insert into words(word,slideid,origin,kw)"
                           "values(lower(trim(?)),?,upper(char(?)),"
-                          "case ? when 1 then 'Y' else 'N' end)",
+                          "case ? when 0 then 'N' else 'Y' end)",
                           -1,
                           &G_ins_word,
                           (const char **)&ztail) != SQLITE_OK)
          || (sqlite3_prepare(G_db,
                           "insert into words(word,slideid,origin,kw)"
                           "values(trim(?),?,upper(char(?)),"
-                          "case ? when 1 then 'Y' else 'N' end)",
+                          "case ? when 0 then 'N' else 'Y' end)",
                           -1,
                           &G_ins_word_as_is,
                           (const char **)&ztail) != SQLITE_OK)
@@ -262,7 +262,7 @@ extern void new_word_as_is(char *w, int slideid, char origin, short kw) {
       if ((sqlite3_bind_text(G_ins_word_as_is, 1, t, -1, NULL) == SQLITE_OK)
           && (sqlite3_bind_int(G_ins_word_as_is, 2, slideid) == SQLITE_OK)
           && (sqlite3_bind_int(G_ins_word_as_is, 3, (int)origin) == SQLITE_OK)
-          && (sqlite3_bind_int(G_ins_word, 4, (int)kw) == SQLITE_OK)
+          && (sqlite3_bind_int(G_ins_word_as_is, 4, (int)kw) == SQLITE_OK)
           && ((code = sqlite3_step(G_ins_word_as_is)) == SQLITE_DONE)) {
         return; 
       }
@@ -454,10 +454,15 @@ extern void generate_index(void) {
    short         kw;
    char          keyword;
    char          rtf = get_mode() & OPT_RTF;
+   unsigned int  codepoint;
+   int           len;
 
    if ((sqlite3_prepare(G_db,
-                        "select x.word,x.shortname,"
-                        "       group_concat(x.slidenum),"
+                        "select case ? when 0 then word"
+                        "              else replace(word,'\\','\\\\') end,"
+                        "       shortname,slidenum,kw"
+                        " from(select x.word,x.shortname,"
+                        "       group_concat(x.slidenum) as slidenum,"
                         "       case x.kw when 'Y' then 1 else 0 end as kw"
                         " from (select distinct coalesce(w.stem, w.word)"
                         "         as word, d.shortname,"
@@ -475,14 +480,18 @@ extern void generate_index(void) {
                         "              on d.deckid = s.deckid"
                         "       where length(trim(word))>0"
                         "       order by 1, 2, 3) x"
-                        " group by x.word,x.shortname,x.kw"
-                        " order by upper(x.word),x.shortname",
+                        " group by x.word,x.shortname,x.kw) y"
+                        " order by case when substr(upper(word),1,1)"
+                        "  between 'A' and 'Z' then 1 else 0 end,"
+                        " upper(word),shortname",
                         -1,
                         &stmt,
                         (const char **)&ztail) != SQLITE_OK)
                 || (sqlite3_bind_int(stmt, 1,
-                                     (int)get_pages())!= SQLITE_OK)
+                                     (int)rtf)!= SQLITE_OK)
                 || (sqlite3_bind_int(stmt, 2,
+                                     (int)get_pages())!= SQLITE_OK)
+                || (sqlite3_bind_int(stmt, 3,
                                      (int)get_pages())!= SQLITE_OK)) {
      fprintf(stderr, "generate_index 0: %s\n",
                      (char *)sqlite3_errmsg(G_db));
@@ -500,7 +509,7 @@ extern void generate_index(void) {
    prevword[0] = '\0';
    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
      w = (char *)sqlite3_column_text(stmt, 0);
-     kw = (char)sqlite3_column_int(stmt, 4);
+     kw = (char)sqlite3_column_int(stmt, 3);
      if ((toupper(*w) != initial) && isalpha(*w)) {
        if (rtf) {
          printf("\\\n\\\n\\b\\fs44 \\cf2 %c\n\\b0\\fs24 \\cf0 \\\n",
@@ -520,7 +529,18 @@ extern void generate_index(void) {
          if (keyword) {
            printf("\\\n\\f1\\b %s\n\\f0\\b0 \\\n", w);
          } else {
-           printf("\\\n%s\\\n", w);
+           printf("\\\n");
+           p = w;
+           while (*p) {
+             codepoint = utf8_to_codepoint((const unsigned char *)p, &len);
+             if (len == 1) {
+               putchar(*p);
+             } else {
+               printf("\\u%ld?", (long)codepoint);
+             }
+             p += len;
+           }
+           printf("\\\n");
          }
        } else {
          printf("\n%s\n", w);

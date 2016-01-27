@@ -135,7 +135,6 @@ extern char *index_entry(char *w, short *kw_ptr) {
     if (G_tree) {
       return tree_entry(G_tree, w, kw_ptr);
     }
-    *kw_ptr = 0;
     return w;
 }
 

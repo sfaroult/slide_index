@@ -23,6 +23,10 @@ static void parse_insert(char *str, int slideid, char origin) {
         while (*s && !isalpha(*s) && (*s != get_kw())) {
           s++;
         }
+        if (*s == get_kw()) {
+          kw = 1;
+          s++;
+        }
         if (*s) {
           len = 1;
           w = s;
@@ -46,7 +50,7 @@ static void parse_insert(char *str, int slideid, char origin) {
           } else {
             if (len >= MIN_WORD_LEN) {
               if (!must_ignore(w)) {
-                new_word(w, slideid, origin, 0);
+                new_word(w, slideid, origin, kw);
               }
             }
           }
@@ -137,6 +141,7 @@ extern int process_pptx(char *pptx_file) {
   int                slideid;
   char               xmlrel[FILENAME_MAX];
   short              kw;
+  short              level;
 
   memset(&zip_archive, 0, sizeof(zip_archive));
   status = mz_zip_reader_init_file(&zip_archive, pptx_file, 0);
@@ -197,11 +202,27 @@ extern int process_pptx(char *pptx_file) {
               if (get_mode() & OPT_TAGS) {
                 // Exclusively look for indexing words in the notes
                 q = xml_slide;
+                level = 0;
                 while ((p = strchr(q, '[')) != (char *)NULL) {
+                  level++;
                   do {
                     p++;
                   } while (isspace(*p));
-                  if ((q = strchr(p, ']')) != (char *)NULL) {
+                  q = p + 1;
+                  while (*q && ((*q != ']') || (level > 1))) {
+                    switch (*q) {
+                      case '[':
+                           level++;
+                           break;
+                      case ']':
+                           level--;
+                           break;
+                      default:
+                           break;
+                    }
+                    q++;
+                  }
+                  if (*q == ']') {
                     *q = '\0';
                     if (get_sep() == ';') {
                       // Replace HTML entities if there are any

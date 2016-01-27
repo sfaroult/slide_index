@@ -20,6 +20,9 @@ static ENTITY_T      G_entities[] = {{"&nbsp;", " "},
                                      {"&#62;", ">"},
                                      {"&amp;", "&"},
                                      {"&#38;", "&"},
+                                     {"&#91;", "["},
+                                     {"&#92;", "\\"},
+                                     {"&#93;", "]"},
                                      {"&Aacute;", "Á"},
                                      {"&#193;", "Á"},
                                      {"&aacute;", "á"},
@@ -156,6 +159,75 @@ static ENTITY_T      G_entities[] = {{"&nbsp;", " "},
                                      {"&#376;", "Ÿ"},
                                      {NULL, NULL}};
 
+static int is_utf8(const unsigned char *u) {
+   // Validate utf8 character.
+   // Returns the length, 0 if invalid.
+   int len = 0;
+
+   if (u) {
+      if (*u < 0xc0) {
+         len = 1;
+      } else {
+         if ((*u & 0xe0) == 0xc0) {
+            // U-00000080 - U-000007FF : 110xxxxx 10xxxxxx
+            len = 2;
+         } else if ((*u & 0xf0) == 0xe0) {
+            // U-00000800 - U-0000FFFF : 1110xxxx 10xxxxxx 10xxxxxx
+            len = 3;
+         } else if ((*u & 0xf8) == 0xf0) {
+            // U-00010000 - U-001FFFFF : 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+            len = 4;
+         } else {
+            // malformed UTF-8 character
+            return 0;
+         }
+         // Check that the UTF-8 character is OK
+         int i;
+         for (i = 1; i < len; i++ ) {
+            if ((u[i] & 0xC0) != 0x80) {
+               return 0;
+            }
+         }
+      }
+   }
+   return len;
+}
+
+extern unsigned int utf8_to_codepoint(const unsigned char *u,
+                                      int                 *lenptr) {
+   // Returns 0 if something goes wrong
+   // Passes back the length
+   unsigned int cp = 0;
+
+   *lenptr = 0;
+   if (u) {
+      if (*u < 0xc0) {
+         cp = (unsigned int)*u;
+         *lenptr = 1;
+      } else {
+         *lenptr = is_utf8(u);
+         if (*lenptr == 0) {
+            return 0;
+         }
+         switch (*lenptr) {
+            case 2:
+                 cp = (u[0] - 192) * 64 + u[1] - 128;
+                 break;
+            case 3:
+                 cp = (u[0] - 224) * 4096
+                    + (u[1] - 128) * 64 + u[2] - 128;
+                 break;
+            default:
+                 cp = (u[0] - 240) * 262144
+                     + (u[1] - 128) * 4096
+                     + (u[2] - 128) * 64 + u[3] - 128;
+                 break;
+         }
+      }
+   }
+   return cp;
+}
+
 extern char *cleanup(char *w) {
     char *p;
     char *s;
@@ -223,7 +295,7 @@ extern short lowercase_word(char *w) {
 
    if (w && islower(*w)) {
      s = w;
-     while (*s && islower(*s)) {
+     while (*s && (islower(*s) || !isalpha(*s))) {
        s++;
      }
      if (*s == '\0') {
