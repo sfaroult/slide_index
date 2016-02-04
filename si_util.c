@@ -23,6 +23,9 @@ static ENTITY_T      G_entities[] = {{"&nbsp;", " "},
                                      {"&#91;", "["},
                                      {"&#92;", "\\"},
                                      {"&#93;", "]"},
+                                     {"&#123;", "{"},
+                                     {"&#124;", "|"},
+                                     {"&#125;", "}"},
                                      {"&Aacute;", "Á"},
                                      {"&#193;", "Á"},
                                      {"&aacute;", "á"},
@@ -273,7 +276,7 @@ extern void replace_entities(char *p) {
     char *q = &(p[strlen(p)]);
 
     while (G_entities[i].code) {
-      if ((e = strstr(p, G_entities[i].code)) != (char *)NULL){
+      while ((e = strstr(p, G_entities[i].code)) != (char *)NULL){
         delta = strlen(G_entities[i].code)
                 - strlen(G_entities[i].replacement);
         memcpy(e, G_entities[i].replacement,
