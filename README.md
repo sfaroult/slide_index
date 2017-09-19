@@ -1,5 +1,5 @@
 # slide_index
-A utility for generating an index for Powerpoint slides
+A utility for generating an index for Powerpoint slide handouts.
 
 IMPORTANT: This utilitity requires miniz (https://code.google.com/archive/p/miniz/) as well as SQLite (which is usually installed on any Mac/Linux machine). As my code requires miniz.h and as the header file is in fact included into miniz.c, I have extracted it and added to this repository.
 
@@ -40,7 +40,7 @@ To help with generating a list of words susceptible of appearing in an index, th
 
 When generating the index, there are also several options:
 
-- By default, the index entries are composed of the name of the slide deck, followed by a list of slide numbers. Personally, I provide handouts with 4 slides per page. There is a -p option followed by the number of slides per page that generates an index with the ultimate page rather than slide number (but remember that was is index is a set of .pptx, not .pdf, slides)
+- By default, the index entries are composed of the name of the slide deck, followed by a list of slide numbers. Personally, I provide handouts with 4 slides per page. There is a -p option followed by the number of slides per page that generates an index with the ultimate page rather than slide number (but remember that was is indexed is a set of .pptx, not .pdf, slides)
 
 - By default again, what is generated is a text file. A -r option allows to generate instead a Rich Text Format (.rtf) file instead. With a rich text format, there is the possibility of making a difference between keywords (which are important in my discipline) and other words. By default (it can be disabled), a word that is all in lower case will be understood to be a special keyword and its index entry will be set in a monospace font and in bold. Alternatively, you can also define a special character (for instance @) as indicative of something that must be set in monospace and bold, and any word prefixed by the defined chracter will appear as such in the index.
 
