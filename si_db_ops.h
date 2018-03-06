@@ -10,6 +10,6 @@ extern void new_word_as_is(char *w, int slideid, char origin, short kw);
 extern void remove_words(void);
 extern void stem_words(void);
 extern void generate_list(void);
-extern void generate_index(void);
+extern void generate_index(char debug);
 
 #endif

@@ -6,7 +6,8 @@
 
 #include "slide_index.h"
 
-#define OPTIONS  "rI:tS:s:p:k:d"
+// Undocumnted x: debug
+#define OPTIONS  "xrI:tS:s:p:k:d"
 
 static void usage(char *fname) {
    if (fname) {
@@ -69,6 +70,7 @@ int main(int argc, char *argv[]) {
   char               stop_file[FILENAME_MAX];
   char               failure = 0;
   short              slides_per_page = 0;
+  char               debug = 0;
 
   // Possible options:
   //    - called with -n
@@ -90,6 +92,9 @@ int main(int argc, char *argv[]) {
   //
   while ((ch = getopt(argc, argv, OPTIONS)) != -1) {
     switch (ch) {
+      case 'x':  // Debug (undocumented)
+        debug = 1;
+        break;
       case 'd':  // Disable auto-keyword mode
         disable_autokw();
         break;
@@ -208,7 +213,7 @@ int main(int argc, char *argv[]) {
             generate_list();
             break;
        default:
-            generate_index();
+            generate_index(debug);
             break;
     }
   } else {

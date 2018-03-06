@@ -107,7 +107,7 @@ extern void setup_sqlite() {
      // Prepare statements that will be repeatedly executed
      if ((sqlite3_prepare(G_db,
                           "insert into decks(filename,shortname)"
-                          "values(?,lower(?))",
+                          "values(trim(?),trim(lower(?)))",
                           -1,
                           &G_ins_deck,
                           (const char **)&ztail) != SQLITE_OK)
@@ -437,7 +437,7 @@ extern void generate_list(void) {
    }
 }
 
-extern void generate_index(void) {
+extern void generate_index(char debug) {
    sqlite3_stmt *stmt = (sqlite3_stmt *)NULL;
    char         *ztail = (char *)NULL;
    char          initial = '\0';
@@ -462,8 +462,8 @@ extern void generate_index(void) {
                         "              else replace(word,'\\','\\\\') end,"
                         "       shortname,slidenum,kw"
                         " from(select x.word,x.shortname,"
-                        "       group_concat(x.slidenum) as slidenum,"
-                        "       case x.kw when 'Y' then 1 else 0 end as kw"
+                        "       group_concat(distinct x.slidenum) as slidenum,"
+                        "       max(case x.kw when 'Y' then 1 else 0 end) as kw"
                         " from (select distinct coalesce(w.stem, w.word)"
                         "         as word, d.shortname,"
                         "         case ?"
@@ -480,7 +480,7 @@ extern void generate_index(void) {
                         "              on d.deckid = s.deckid"
                         "       where length(trim(word))>0"
                         "       order by 1, 2, 3) x"
-                        " group by x.word,x.shortname,x.kw) y"
+                        " group by x.word,x.shortname) y"
                         " order by case when substr(upper(word),1,1)"
                         "  between 'A' and 'Z' then 1 else 0 end,"
                         " upper(word),shortname",
@@ -502,13 +502,16 @@ extern void generate_index(void) {
      printf("{\\rtf1\\ansi\\ansicpg1252\\cocoartf1404\\cocoasubrtf340\n");
      printf("{\\fonttbl\\f0\\fswiss\\fcharset0 Helvetica;\\f1\\fnil\\fcharset0 Consolas-Bold;}\n");
      printf("{\\colortbl;\\red255\\green255\\blue255;\\red59\\green0\\blue164;}\n");
-    printf("\\margl1440\\margr1440\\vieww18540\\viewh14540\\viewkind0\n");
+     printf("\\margl720\\margr720\\vieww18540\\viewh14540\\viewkind0\n");
     printf("\\pard\\tx566\\tx1133\\tx1700\\tx2267\\tx2834\\tx3401\\tx3968\\tx4535\\tx5102\\tx5669\\tx6236\\tx6803\\pardirnatural\\partightenfactor0\n");
-    printf("\n\\f0\\fs24 \\cf0 \\\n");
+    printf("\n\\cols2 \\f0\\fs24 \\cf0 \\\n");
    }
    prevword[0] = '\0';
    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
      w = (char *)sqlite3_column_text(stmt, 0);
+     if (debug) {
+       fprintf(stderr, "%s: ", w);
+     }
      kw = (char)sqlite3_column_int(stmt, 3);
      if ((toupper(*w) != initial) && isalpha(*w)) {
        if (rtf) {
@@ -553,12 +556,18 @@ extern void generate_index(void) {
        putchar('\n');
      }
      d = (char *)sqlite3_column_text(stmt, 1);
+     if (debug) {
+       fprintf(stderr, "\t%s\t", d);
+     }
      printf("   %s%-30.30s%s %s ",
             (rtf ? "\\i ":""),
             d,
             (rtf ? "\n\\i0":""),
             (get_pages() ? "p." : ""));
      s = strdup((char *)sqlite3_column_text(stmt, 2));
+     if (debug) {
+       fprintf(stderr, "%s\n", s);
+     }
      // Try to condense by replacing three or more consecutive
      // page or slide values with a n-m range
      range = 0;
