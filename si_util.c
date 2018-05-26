@@ -236,8 +236,12 @@ extern char *cleanup(char *w) {
     char *s;
     char *t;
     char cp = 1;
+    int  len;
 
     if (w) {
+      while (isspace(*w)) {
+        w++;
+      }
       t = strdup(w);
       p = t;
       s = t;
@@ -251,6 +255,9 @@ extern char *cleanup(char *w) {
                break;
           default:
                if (cp) {
+                 if (*p == '\\') { // Skip
+                   p++;
+                 }
                  if (s != p) {
                    *s = *p;
                  }
@@ -261,6 +268,11 @@ extern char *cleanup(char *w) {
         p++;
       }
       *s = '\0';
+      len = strlen(t);
+      while (len && isspace(t[len-1])) {
+        len--;
+      }
+      t[len] = '\0';
       return t;
     }
     return (char *)NULL;

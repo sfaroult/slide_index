@@ -132,6 +132,7 @@ extern int process_pptx(char *pptx_file) {
   char              *p;
   char              *q;
   char              *s;
+  char              *prev;
   char              *t;
   int                i;
   int                deckid;
@@ -211,6 +212,9 @@ extern int process_pptx(char *pptx_file) {
                   q = p + 1;
                   while (*q && ((*q != ']') || (level > 1))) {
                     switch (*q) {
+                      case '\\': // Escaped
+                           q++;
+                           break;
                       case '[':
                            level++;
                            break;
@@ -229,20 +233,26 @@ extern int process_pptx(char *pptx_file) {
                       replace_entities(p);
                     }
                     while ((s = strchr(p, get_sep())) != (char *)NULL) {
-                      *s++ = '\0';
-                      if (*p == get_kw()) {
-                        p++;
-                        kw = 1;
-                      } else {
-                        if (autokw()) {
-                          kw = lowercase_word(p);
+                      prev = s;
+                      prev--;
+                      if (*prev != '\\') {
+                        *s++ = '\0';
+                        if (*p == get_kw()) {
+                          p++;
+                          kw = 1;
                         } else {
-                          kw = 0;
+                          if (autokw()) {
+                            kw = lowercase_word(p);
+                          } else {
+                            kw = 0;
+                          }
+                        } 
+                        if ((t = cleanup(p)) != (char *)NULL) {
+                          new_word_as_is(t, slideid, 'T', kw);
+                          free(t);
                         }
-                      } 
-                      if ((t = cleanup(p)) != (char *)NULL) {
-                        new_word_as_is(t, slideid, 'T', kw);
-                        free(t);
+                      } else {
+                        s++;  // Was escaped
                       }
                       p = s;
                       while (isspace(*p)) {

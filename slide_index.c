@@ -7,13 +7,17 @@
 #include "slide_index.h"
 
 // Undocumnted x: debug
-#define OPTIONS  "xrI:tS:s:p:k:d"
+#define OPTIONS  "xrI:tS:s:p:k:dw"
 
 static void usage(char *fname) {
    if (fname) {
      fprintf(stderr, "Usage: %s [flags] <pptx file> [<pptx file> ...]\n",
                      fname);
      fprintf(stderr, " Flags:\n");
+     fprintf(stderr,
+        "  -w            : Don't generate an index but generate warnings\n");
+     fprintf(stderr,
+        "                  about possible typos in indexed words.\n");
      fprintf(stderr,
         "  -d            : Disable the \"auto-keyword\" mode. By default,\n");
      fprintf(stderr,
@@ -35,7 +39,7 @@ static void usage(char *fname) {
      fprintf(stderr,
         "                  in an RTF index); must be a single character.\n");
      fprintf(stderr,
-        "  -p <num>      : By default the slide number appear in the index.\n");
+        "  -p <num>      : By default the slide number appears in the index.\n");
      fprintf(stderr,
         "                  If handouts contain multiple slides per page,\n");
      fprintf(stderr,
@@ -71,6 +75,7 @@ int main(int argc, char *argv[]) {
   char               failure = 0;
   short              slides_per_page = 0;
   char               debug = 0;
+  char               typos = 0;
 
   // Possible options:
   //    - called with -n
@@ -94,6 +99,9 @@ int main(int argc, char *argv[]) {
     switch (ch) {
       case 'x':  // Debug (undocumented)
         debug = 1;
+        break;
+      case 'w':  // Warn about possible typos
+        typos = 1;
         break;
       case 'd':  // Disable auto-keyword mode
         disable_autokw();
@@ -180,7 +188,7 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Options -r and -s are incompatible\n");
     return 1;
   }
-  setup_sqlite();
+  setup_sqlite(debug);
   if (get_mode() & OPT_IFILE) {
      load_index(keyword_file);
   }
@@ -213,7 +221,11 @@ int main(int argc, char *argv[]) {
             generate_list();
             break;
        default:
-            generate_index(debug);
+            if (!typos) {
+              generate_index(debug);
+            } else {
+              check_typos(debug);
+            }
             break;
     }
   } else {

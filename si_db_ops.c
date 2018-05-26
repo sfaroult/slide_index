@@ -3,11 +3,13 @@
 #include <string.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include "sqlite3.h"
 #include "si_tree_ops.h"
 #include "si_db_ops.h"
 #include "slide_index.h"
+#include "sqlitefn.h"
 
 static sqlite3      *G_db = (sqlite3 *)NULL;
 static sqlite3_stmt *G_ins_deck = (sqlite3_stmt *)NULL;
@@ -18,6 +20,175 @@ static sqlite3_stmt *G_ins_word_as_is = (sqlite3_stmt *)NULL;
 static sqlite3_stmt *G_upd_word = (sqlite3_stmt *)NULL;
 static sqlite3_stmt *G_upd_word_as_is = (sqlite3_stmt *)NULL;
 
+#define CHECK_COUNT             4
+#define SAME_EXCEPT_FOR_CASE    0
+#define PERHAPS_WRONG_SEP       1
+#define PERHAPS_TYPO_TABLE      2
+#define PERHAPS_TYPO_QUERY      3
+
+static char *G_index_check[] = 
+      {
+       // Case issue
+       "select group_concat(location)"
+       " from(select id,word||'['||group_concat(found,'/')||']' as location"
+       "  from(select id,word,shortname||':'||group_concat(slidenum) as found"
+       "   from(select id,word,shortname,slidenum"
+       "    from(select min(rowid) as id,upper(word) as w"
+       "     from words"
+       "     group by upper(word)"
+       "     having count(distinct word)>1) x"
+       "    join words w"
+       "     on upper(w.word)=x.w"
+       "    join slides s"
+       "     on s.slideid=w.slideid"
+       "    join decks d"
+       "     on d.deckid=s.deckid"
+       "    order by 1,2,3,4) z"
+       "   group by id,word,shortname) a"
+       "  group by id,word) b"
+       " group by id"
+       " order by 1",
+       // Separator issue
+       "select word,group_concat(loc)"
+       " from(select word,shortname||':'||"
+       " group_concat(cast(slidenum as char)) loc"
+       "  from(select word,d.shortname,s.slidenum"
+       "   from(select similar(?) sep,word,slideid"
+       "    from words"
+       "     where word like '%'||similar(?)||'%'"
+       "     and length(word)>=1.5"
+       " *(select round(avg(length(word))) from words)) x"
+       "     join slides s"
+       "      on s.slideid=x.slideid"
+       "     join decks d"
+       "      on d.deckid=s.deckid"
+       "    order by 1,2,3) z"
+       "   group by word,shortname) w"
+       "  group by word"
+       "  having count(*)=1", // If in one file only, probably a mistake
+       // Typo
+       // 1. Work table - seems to crash with a common table expression
+       "create table w as"
+       " select id,w1,w2"
+       " from(select  min(w1.rowid)||'/'||min(w2.rowid) as id,"
+       "  upper(w1.word) w1,upper(w2.word) w2"
+       "  from words w1"
+       "   join words w2"
+       "    on upper(w2.word) like upper(substr(w1.word,1,1))||'%'"
+       "    and w2.word<>w1.word"
+       "  where upper(w1)<upper(w2)"
+       "  group by upper(w1.word),upper(w2.word)) x"
+       " where levenshtein(w1,w2)=1",
+       // 2. Query
+       "select max(case which when 1 then word else null end) as w1,"
+       " max(case which when 1 then slides else null end) as w1_found,"
+       " max(case which when 2 then word else null end) as w2,"
+       " max(case which when 2 then slides else null end) as w2_found"
+       " from(select id,which,word,group_concat(slides,'/') as slides"
+       "  from(select id,1 as which,word,shortname||':'||"
+       "   group_concat(cast(slidenum as varchar)) slides"
+       "   from (select w.id,w.w1 as word,d.shortname,s.slidenum"
+       "    from w"
+       "     join words w2"
+       "      on upper(w2.word)=w.w1"
+       "     join slides s"
+       "      on s.slideid=w2.slideid"
+       "     join decks d"
+       "      on d.deckid=s.deckid"
+       "    order by 1,2,3,4) x"
+       "   group by id,word,shortname"
+       "   union all"
+       "   select id,2 as which,word,shortname||':'||"
+       "   group_concat(cast(slidenum as varchar)) slides"
+       "   from (select w.id,w.w2 as word,d.shortname,s.slidenum"
+       "    from w"
+       "     join words w2"
+       "      on upper(w2.word)=w.w2"
+       "     join slides s"
+       "      on s.slideid=w2.slideid"
+       "     join decks d"
+       "      on d.deckid=s.deckid"
+       "    order by 1,2,3,4) x2"
+       "   group by id,word,shortname) xx"
+       "  group by id,which,word) y"
+       " group by id"
+       " order by 1"};
+
+
+extern void check_typos(char debug) {
+     int           i;
+     int           j;
+     int           rc;
+     sqlite3_stmt *stmt = (sqlite3_stmt *)NULL;
+     char         *ztail = (char *)NULL;
+     char          info = 0;
+
+     for (i = 0; i < CHECK_COUNT; i++) {
+       if (sqlite3_prepare(G_db,
+                           (const char *)G_index_check[i],
+                           -1,
+                           &stmt,
+                           (const char **)&ztail) != SQLITE_OK) {
+         fprintf(stderr, "%s: %s\n",
+                         G_index_check[i],
+                         (char *)sqlite3_errmsg(G_db));
+         (void)sqlite3_close(G_db);
+         exit(1);
+       }
+       if (i == PERHAPS_WRONG_SEP) {
+         // Must bind the separator (twice)
+         char buf[2];
+         buf[0] = get_sep();
+         buf[1] = '\0';
+         if ((sqlite3_bind_text(stmt, 1, buf,
+                                -1, SQLITE_TRANSIENT) != SQLITE_OK)
+            || (sqlite3_bind_text(stmt, 2, buf,
+                                -1, SQLITE_TRANSIENT) != SQLITE_OK)) {
+            fprintf(stderr, "bind separator: %s\n",
+                      (char *)sqlite3_errmsg(G_db));
+            (void)sqlite3_close(G_db);
+            exit(1);
+          }
+       }
+       info = 0;
+       while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+          if (!info) {
+             // Display some information
+             switch(i) {
+               case SAME_EXCEPT_FOR_CASE:
+                    printf("\nThe following tags only differ by the case:\n");
+                    printf("-------------------------------------------\n");
+                    break;
+               case PERHAPS_WRONG_SEP:
+                    printf("\nMistyped tag separator?\n");
+                    printf("-----------------------\n");
+                    break;
+               case PERHAPS_TYPO_QUERY:
+                    printf("\nVery similar tags. Typo?\n");
+                    printf("------------------------\n");
+                    break;
+               default:
+                    break;
+             }
+            info = 1;
+          }
+          // Read and display everything
+          for (j = 0; j < sqlite3_column_count(stmt); j++) {
+            printf("%s%s", (j ? "\t" : ""),
+                           (char *)sqlite3_column_text(stmt, j));
+          }
+          putchar('\n');
+       }
+       if (rc != SQLITE_DONE) {
+         fprintf(stderr, "%s: %s\n",
+                         G_index_check[i],
+                         (char *)sqlite3_errmsg(G_db));
+         (void)sqlite3_close(G_db);
+         exit(1);
+       }
+       (void)sqlite3_finalize(stmt);
+     }
+}
 
 static void finalize_sqlite() {
     if (G_ins_deck) {
@@ -46,7 +217,7 @@ static void finalize_sqlite() {
     }
 }
 
-extern void setup_sqlite() {
+extern void setup_sqlite(char debug) {
      int           i;
      sqlite3_stmt *stmt = (sqlite3_stmt *)NULL;
      char         *ztail = (char *)NULL;
@@ -83,10 +254,28 @@ extern void setup_sqlite() {
                                " on words(stem)",
                                NULL};
     
-     if (sqlite3_open(":memory:", &G_db) != SQLITE_OK) {
-        fprintf(stderr, "sqlite3_open: %s\n", (char *)sqlite3_errmsg(G_db));
-        exit(1);
+     if (!debug) {
+        if (sqlite3_open(":memory:", &G_db) != SQLITE_OK) {
+           fprintf(stderr, "sqlite3_open: %s\n", (char *)sqlite3_errmsg(G_db));
+           exit(1);
+        }
+     } else {
+        struct stat buf;
+        if (stat("slide_index_dbg.sqlite", &buf) != -1) {
+           unlink("slide_index_dbg.sqlite");
+        }
+        if (sqlite3_open("slide_index_dbg.sqlite", &G_db) != SQLITE_OK) {
+           fprintf(stderr, "sqlite3_open: %s\n", (char *)sqlite3_errmsg(G_db));
+           exit(1);
+        }
      }
+     // Load extensions
+     sqlite3_create_function(G_db, "levenshtein", 2,
+                             SQLITE_UTF8|SQLITE_DETERMINISTIC,
+                             0, levenshtein, 0, 0);
+     sqlite3_create_function(G_db, "similar", 1,
+                             SQLITE_UTF8|SQLITE_DETERMINISTIC,
+                             0, similar, 0, 0);
      i = 0;
      while (create[i]) {
        if ((sqlite3_prepare(G_db,
@@ -481,9 +670,16 @@ extern void generate_index(char debug) {
                         "       where length(trim(word))>0"
                         "       order by 1, 2, 3) x"
                         " group by x.word,x.shortname) y"
-                        " order by case when substr(upper(word),1,1)"
-                        "  between 'A' and 'Z' then 1 else 0 end,"
-                        " upper(word),shortname",
+                        " order by "
+                        " case when substr(word,1,1) between 'a' and 'z'"
+                        "        or substr(word,1,1) between 'A' and 'Z'"
+                        "        then 1"
+                        "        else 0"
+                        "      end, upper(word),case when substr(word,1,1)"
+                        "  between 'a' and 'z' then 1"
+                        "  when substr(word,1,1)"
+                        "  between 'A' and 'Z' then 2 else 0 end,"
+                        " shortname",
                         -1,
                         &stmt,
                         (const char **)&ztail) != SQLITE_OK)
@@ -515,7 +711,7 @@ extern void generate_index(char debug) {
      kw = (char)sqlite3_column_int(stmt, 3);
      if ((toupper(*w) != initial) && isalpha(*w)) {
        if (rtf) {
-         printf("\\\n\\\n\\b\\fs44 \\cf2 %c\n\\b0\\fs24 \\cf0 \\\n",
+         printf("\\\n\\\n\\pard\\keepn \\b\\fs44 \\cf2 %c\n\\b0\\fs24 \\cf0 \\\n",
                 toupper(*w));
        } else {
          printf("\n\n--- %c ---", toupper(*w));
@@ -530,9 +726,9 @@ extern void generate_index(char debug) {
        }
        if (rtf) { 
          if (keyword) {
-           printf("\\\n\\f1\\b %s\n\\f0\\b0 \\\n", w);
+           printf("\\\n\\f1\\b \\pard\\keepn %s\n\\f0\\b0 \\\n", w);
          } else {
-           printf("\\\n");
+           printf("\\\n\\pard\\keepn ");
            p = w;
            while (*p) {
              codepoint = utf8_to_codepoint((const unsigned char *)p, &len);
@@ -560,7 +756,7 @@ extern void generate_index(char debug) {
        fprintf(stderr, "\t%s\t", d);
      }
      printf("   %s%-30.30s%s %s ",
-            (rtf ? "\\i ":""),
+            (rtf ? "\\i\\pard ":""),
             d,
             (rtf ? "\n\\i0":""),
             (get_pages() ? "p." : ""));
