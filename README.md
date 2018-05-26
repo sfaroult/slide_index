@@ -9,11 +9,13 @@ I have only tested it on my Mac; it should run without any problem on any Linux.
 
 There are different ways to use this tool:
 
-1) The preferred way is to 'tag' slides. It requires a bit of preparation but allows to generate a "quality" index. Tags must be inserted in the slide notes between square brackets:
+1) The preferred way is to 'tag' slides. This is what I use. It requires a bit of preparation but allows to generate a "quality" index. Tags must be inserted in the slide notes between square brackets:
 
   [tag1;tag2; ...;tagn]
 
-Each tag will become an index entry. Note that tags aren't necessarily a single word, but can be a full expression. They simply must'nt contain the tag separator, which is ';' by default but can be changed.
+Each tag will become an index entry. Note that tags aren't necessarily a single word, but can be a full expression. They simply musn't contain the tag separator, which is ';' by default but can be changed. I have recently added support for \ to escape characters, but it's untested.
+
+As I have more than once goofed with tags (typos, using once plural and once singular, inconsistent case) I have added the '-w' option to analyze tags and report what looks suspicious - tags that are identical except for the case (sometimes legit, you may want to index separately a word and a computer language keyword), long entries that contain something that looks like the separator but isn't, and entries that only differ by one character (using the Levenshtein distance). There may be some noise, but it should normally tell you what should be corrected and where.
 
 Example:
 
@@ -43,47 +45,47 @@ When generating the index, there are also several options:
 - By default, the index entries are composed of the name of the slide deck, followed by a list of slide numbers. Personally, I provide handouts with 4 slides per page. There is a -p option followed by the number of slides per page that generates an index with the ultimate page rather than slide number (but remember that was is indexed is a set of .pptx, not .pdf, slides)
 
 - By default again, what is generated is a text file. A -r option allows to generate instead a Rich Text Format (.rtf) file instead. With a rich text format, there is the possibility of making a difference between keywords (which are important in my discipline) and other words. By default (it can be disabled), a word that is all in lower case will be understood to be a special keyword and its index entry will be set in a monospace font and in bold. Alternatively, you can also define a special character (for instance @) as indicative of something that must be set in monospace and bold, and any word prefixed by the defined chracter will appear as such in the index.
+In Rich Text Format, index entries are on two columns and kept with the next line so that page breaks don't mess up everything. Open the file with MS Word, save it as a PDF and you are done.
 
 The program writes its output to the standard output, which must be redirected. It also writes some informative messages (number of slides in eac .pptx file processed, for example) to the standard error.
  
 USAGE
 
-slide_index [flags] <pptx file> [<pptx file> ...]
+`slide_index [flags] <pptx file> [<pptx file> ...]`
 
  Flags:
  
-  -d            : Disable the "auto-keyword" mode. By default, all-lowercase words are understood as keywords
-                  and displayed differently in an RTF index.
+  `-w`            : Don't generate an index but generate warnings about possible typos in indexed words.
+
+  `-d`            : Disable the "auto-keyword" mode. By default, all-lowercase words are understood as keywords and displayed differently in an RTF index.
                   
-  -I <filename> : Read words to index from <filename>.
-                  Each line can contain several variants of the same word, separated by a character that
-                  defaults to a semi-colon. The first entry on the line is the one that appears in the index.
+  `-I <filename>` : Read words to index from `<filename>`.
+                  Each line can contain several variants of the same word, separated by a character that defaults to a semi-colon. The first entry on the line is the one that appears in the index.
                   
-  -k <char>     : Prefix for keywords (displayed differently in an RTF index); must be a single character.
+  `-k <char>`     : Prefix for keywords (displayed differently in an RTF index); must be a single character.
   
-  -p <num>      : By default the slide number appear in the index. If handouts contain multiple slides per page,
-                  the -p flag followed by the number of slides per page will list the page number in the index.
+  `-p <num>`      : By default the slide number appear in the index. If handouts contain multiple slides per page, the -p flag followed by the number of slides per page will list the page number in the index.
                   
-  -r            : Generate an RTF (Rich-Text-Format) index instead of a plain-text one.
+  `-r`            : Generate an RTF (Rich-Text-Format) index instead of a plain-text one.
   
-  -s <char>     : Change the separator from ';' to <char>
+  `-s <char>`     : Change the separator from ';' to `<char>`
   
-  -S <filename> : Read words that are NOT to index (stop words) from <filename>. There must be only one word per
+  `-S <filename>` : Read words that are NOT to index (stop words) from `<filename>`. There must be only one word per
                   line and no stemming is performed (all variants must be explicitly listed in the file)
                   
-  -t            : Exclusively index from tags in slide notes.
+  `-t`            : Exclusively index from tags in slide notes.
 
 EXAMPLES
 
   Generate lecture notes index as an RTF file from tagged slides; Words starting with @ in tags will be displayed as keywords:
   
-  slide_index -t -k '@' $HOME/CIS209/HANDOUTS/*.pptx > LectureIndex.rtf
+  `slide_index -t -k '@' $HOME/CIS209/HANDOUTS/*.pptx > LectureIndex.rtf`
   
   Generate lecture notes index as a text file using a file of words that should appear in the index:
   
-  slide_index -I words_to_index.txt $HOME/CIS209/HANDOUTS/*.pptx > LectureIndex.txt
+  `slide_index -I words_to_index.txt $HOME/CIS209/HANDOUTS/*.pptx > LectureIndex.txt`
   
   Generate a list of words (to edit) that could be used to generate the index. Ignore words in stop_words.txt:
   
-  slide_index -S stop_words.txt $HOME/CIS209/HANDOUTS/*.pptx > words_to_index.txt
+  `slide_index -S stop_words.txt $HOME/CIS209/HANDOUTS/*.pptx > words_to_index.txt`
   
