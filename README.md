@@ -59,6 +59,8 @@ USAGE
 
   `-d`            : Disable the "auto-keyword" mode. By default, all-lowercase words are understood as keywords and displayed differently in an RTF index.
                   
+  `-f`            : Enable the "auto-function" mode. Entries ending in () will be understood as function names and displayed differently in an RTF index.
+                  
   `-I <filename>` : Read words to index from `<filename>`.
                   Each line can contain several variants of the same word, separated by a character that defaults to a semi-colon. The first entry on the line is the one that appears in the index.
                   
