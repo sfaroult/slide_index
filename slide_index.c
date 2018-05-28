@@ -7,7 +7,7 @@
 #include "slide_index.h"
 
 // Undocumnted x: debug
-#define OPTIONS  "xrI:tS:s:p:k:dw"
+#define OPTIONS  "fxrI:tS:s:p:k:dw"
 
 static void usage(char *fname) {
    if (fname) {
@@ -24,6 +24,14 @@ static void usage(char *fname) {
         "                  all-lowercase words are understood as keywords\n");
      fprintf(stderr,
         "                  and displayed differently in an RTF index.\n");
+     fprintf(stderr,
+        "  -f            : Enable the \"auto-function\" mode (disabled by\n");
+     fprintf(stderr,
+        "                  default). Any entry ending with () is understood\n");
+     fprintf(stderr,
+        "                  as a function and  displayed differently in\n");
+     fprintf(stderr,
+        "                  an RTF index.\n");
      fprintf(stderr,
         "  -I <filename> : Read words to index from <filename>.\n");
      fprintf(stderr,
@@ -105,6 +113,9 @@ int main(int argc, char *argv[]) {
         break;
       case 'd':  // Disable auto-keyword mode
         disable_autokw();
+        break;
+      case 'f':  // Enable auto-function mode
+        enable_autofunc();
         break;
       case 'k':  // Set keyword prefix
         set_kw(*optarg);

@@ -635,6 +635,7 @@ extern void generate_index(char debug) {
    char         *d;   // deck
    char         *s;   // slide list
    char         *p;
+   char         *par;
    int           slast;  // Slide or page number
    int           sn = 0;  // Slide or page number
    short         range;
@@ -721,10 +722,18 @@ extern void generate_index(char debug) {
      w = index_entry(w, &kw);
      keyword = (kw == 1);
      if (strncmp(w, prevword, MAX_WORD_LEN)) {
-       if (rtf && autokw() && !keyword) {
-         keyword = lowercase_word(w);
-       }
-       if (rtf) { 
+       if (rtf) {
+         if (!keyword) {
+           if (autokw()) {
+             keyword = lowercase_word(w);
+           }
+           if (!keyword && autofunc()) {
+             par = strrchr(w, '(');
+             if (par && !strcmp(par, "()")) {
+               keyword = 1;
+             }
+           }
+         }
          if (keyword) {
            printf("\\\n\\f1\\b \\pard\\keepn %s\n\\f0\\b0 \\\n", w);
          } else {

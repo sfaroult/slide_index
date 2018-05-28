@@ -11,13 +11,22 @@ static short    G_slides_per_page = 0;
 static char     G_sep = ';';
 static char     G_kw = '@';
 static char     G_autokw = 1;
+static char     G_autofunc = 0;
 
 extern void disable_autokw(void) {
    G_autokw = 0;
 }
 
+extern void enable_autofunc(void) {
+   G_autofunc = 1;
+}
+
 extern char autokw(void) {
    return G_autokw;
+}
+
+extern char autofunc(void) {
+   return G_autofunc;
 }
 
 extern void set_sep(char sep) {
